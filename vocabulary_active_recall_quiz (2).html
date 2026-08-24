@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vocabulary Active Recall Quiz</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f4f7fb;margin:0;padding:25px;color:#172033}
+.wrap{max-width:900px;margin:auto}.card{background:white;border-radius:16px;padding:22px;margin:16px 0;box-shadow:0 5px 20px #00000012}
+h1{margin-top:0}.muted{color:#657085}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+textarea,input,select{width:100%;box-sizing:border-box;padding:12px;border:1px solid #ccd4e0;border-radius:10px;font-size:15px}
+button{border:0;border-radius:10px;padding:11px 16px;background:#2563eb;color:white;font-weight:700;cursor:pointer;margin:5px 5px 5px 0}
+button.secondary{background:#64748b}.q{font-size:27px;font-weight:700;margin:18px 0}.answer{font-size:18px}
+.stat{display:inline-block;background:#eef3ff;padding:10px 14px;border-radius:10px;margin:4px}
+.correct{color:#14833b}.wrong{color:#c62828}.hidden{display:none}
+@media(max-width:700px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+<h1>📚 Vocabulary Active Recall Quiz</h1>
+<p class="muted">Paste your vocabulary data, then test yourself on synonyms and antonyms.</p>
+<div class="grid">
+<div><h3>Vocabulary data</h3>
+<textarea id="data" rows="12" placeholder="One word per line:
+absence | Synonyms: lack, nonattendance | Antonyms: presence, attendance
+abundant | Synonyms: plentiful, ample | Antonyms: scarce, insufficient"></textarea>
+</div>
+<div>
+<h3>Quiz settings</h3>
+<select id="mode">
+<option value="both">Synonym + Antonym</option>
+<option value="syn">Synonyms only</option>
+<option value="ant">Antonyms only</option>
+</select>
+<p>Answer with one or more correct words, separated by commas.</p>
+<button onclick="loadData()">Start / Load Data</button>
+<button class="secondary" onclick="demo()">Load Example</button>
+</div>
+</div>
+</div>
+
+<div id="quiz" class="card hidden">
+<div>
+<span class="stat">Asked: <b id="asked">0</b></span>
+<span class="stat">Correct: <b id="correct">0</b></span>
+<span class="stat">Accuracy: <b id="accuracy">0%</b></span>
+<span class="stat">Remaining: <b id="remaining">0</b></span>
+</div>
+<div class="q" id="question"></div>
+<input id="answer" placeholder="Type your answer..." onkeydown="if(event.key==='Enter') checkAnswer()">
+<div>
+<button onclick="checkAnswer()">Check Answer</button>
+<button class="secondary" onclick="nextQuestion()">Skip</button>
+</div>
+<div id="result" class="answer"></div>
+</div>
+
+<div id="progress" class="card hidden">
+<h3>🎯 Weak words / revision</h3>
+<div id="weak"></div>
+<button class="secondary" onclick="clearProgress()">Clear Progress</button>
+</div>
+</div>
+
+<script>
+let words=[], current=null, asked=0, correct=0, remaining=0, answered=false;
+const norm=s=>s.toLowerCase().trim().replace(/[.;:!?]/g,'').replace(/\s+/g,' ');
+function parseData(raw){
+  return raw.split(/\\n/).map(x=>x.trim()).filter(Boolean).map(line=>{
+    let parts=line.split('|').map(x=>x.trim()), word=parts[0], syn=[], ant=[];
+    parts.slice(1).forEach(p=>{
+      let m=p.match(/synonyms?\\s*:\\s*(.*)/i); if(m) syn=m[1].split(',').map(x=>x.trim()).filter(Boolean);
+      m=p.match(/antonyms?\\s*:\\s*(.*)/i); if(m) ant=m[1].split(',').map(x=>x.trim()).filter(Boolean);
+    });
+    return {word,syn,ant,wrong:0};
+  }).filter(x=>x.word && (x.syn.length||x.ant.length));
+}
+function loadData(){
+  words=parseData(document.getElementById('data').value);
+  if(!words.length){alert('Please enter data in the format shown.');return;}
+  asked=correct=0; document.getElementById('quiz').classList.remove('hidden');
+  document.getElementById('progress').classList.remove('hidden'); nextQuestion();
+}
+function demo(){
+ document.getElementById('data').value=
+`absence | Synonyms: lack, nonattendance, unavailability | Antonyms: presence, attendance
+abundant | Synonyms: plentiful, ample, copious | Antonyms: scarce, insufficient
+brave | Synonyms: courageous, bold, fearless | Antonyms: cowardly, timid`;
+}
+function nextQuestion(){
+ if(!words.length)return;
+ answered=false; document.getElementById('answer').value='';
+ document.getElementById('result').innerHTML='';
+ let mode=document.getElementById('mode').value;
+ let candidates=words.filter(w=>mode==='syn'?w.syn.length:mode==='ant'?w.ant.length:(w.syn.length||w.ant.length));
+ current=candidates[Math.floor(Math.random()*candidates.length)];
+ let type;
+ if(mode==='syn') type='syn';
+ else if(mode==='ant') type='ant';
+ else type=Math.random()<.5?'syn':'ant';
+ if(type==='syn' && !current.syn.length) type='ant';
+ if(type==='ant' && !current.ant.length) type='syn';
+ current.type=type;
+ document.getElementById('question').textContent=`What is a ${type==='syn'?'synonym':'antonym'} of “${current.word}”?`;
+ update();
+}
+function checkAnswer(){
+ if(answered||!current)return;
+ let val=norm(document.getElementById('answer').value);
+ if(!val){return}
+ asked++; answered=true;
+ let answers=current.type==='syn'?current.syn:current.ant;
+ let ok=answers.some(a=>norm(a)===val);
+ if(ok){correct++;document.getElementById('result').innerHTML='<span class="correct">✅ Correct!</span>';}
+ else{current.wrong++;document.getElementById('result').innerHTML=`<span class="wrong">❌ Wrong!</span><br><b>Correct answers:</b> ${answers.join(', ')}`;}
+ update(); saveProgress();
+}
+function update(){
+ document.getElementById('asked').textContent=asked;
+ document.getElementById('correct').textContent=correct;
+ document.getElementById('accuracy').textContent=asked?Math.round(correct/asked*100)+'%':'0%';
+ document.getElementById('remaining').textContent=words.length;
+ let weak=words.filter(w=>w.wrong>0).sort((a,b)=>b.wrong-a.wrong);
+ document.getElementById('weak').innerHTML=weak.length?weak.map(w=>`<div><b>${w.word}</b> — wrong: ${w.wrong}</div>`).join(''):'No mistakes yet 🎉';
+}
+function saveProgress(){localStorage.setItem('vocabProgress',JSON.stringify(words.map(w=>({word:w.word,wrong:w.wrong}))));}
+function clearProgress(){words.forEach(w=>w.wrong=0);localStorage.removeItem('vocabProgress');update();}
+function demoAndStart(){demo();loadData();}
+</script>
+</body>
+</html>
